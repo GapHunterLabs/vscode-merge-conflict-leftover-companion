@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { scan } from './scanner';
+import { recordHit } from './reviewPrompt';
 
 let diagnostics: vscode.DiagnosticCollection;
 
-function refresh(document: vscode.TextDocument): void {
+function refresh(context: vscode.ExtensionContext, document: vscode.TextDocument): void {
   // Applies to any file type, unlike most of this workstream's other
   // extensions -- a leftover conflict marker can end up in any text
   // file, not just source code.
@@ -21,17 +22,20 @@ function refresh(document: vscode.TextDocument): void {
     return diagnostic;
   });
   diagnostics.set(document.uri, result);
+  for (const hit of hits) {
+    recordHit(context, `${document.uri.toString()}:${hit.line}`);
+  }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
   diagnostics = vscode.languages.createDiagnosticCollection('mergeConflictLeftoverCompanion');
   context.subscriptions.push(diagnostics);
 
-  vscode.workspace.textDocuments.forEach(refresh);
+  vscode.workspace.textDocuments.forEach((doc) => refresh(context, doc));
 
   context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(refresh),
-    vscode.workspace.onDidChangeTextDocument((event) => refresh(event.document)),
+    vscode.workspace.onDidOpenTextDocument((doc) => refresh(context, doc)),
+    vscode.workspace.onDidChangeTextDocument((event) => refresh(context, event.document)),
     vscode.workspace.onDidCloseTextDocument((document) => diagnostics.delete(document.uri)),
   );
 }
